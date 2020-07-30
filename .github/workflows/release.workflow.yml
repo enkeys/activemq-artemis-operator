@@ -22,7 +22,7 @@ jobs:
           username: ${{ secrets.QUAY_USERNAME }}
           password: ${{ secrets.QUAY_PASSWORD }}
           registry: quay.io
-          repository: artemiscloud/activemq-artemis-operator
+          repository: enkeys/activemq-artemis-operator
           path: ./build
           tags: latest
           tag_with_ref: true
