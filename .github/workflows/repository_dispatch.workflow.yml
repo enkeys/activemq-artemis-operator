@@ -1,0 +1,62 @@
+name: Repository dispatch event
+# Called by main activemq-artemis repository
+
+on: repository_dispatch
+
+# https://docs.github.com/en/rest/reference/repos#create-a-repository-dispatch-event
+
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go: [ '1.14', '1.13' ]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set variables
+        run: /
+          echo "::set-env name=VERSION::$(curl -k -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)"
+
+      - name: Deploy Kind
+        run: |
+          curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
+          dep ensure --vendor-only
+          go get sigs.k8s.io/kind
+          go get golang.org/x/lint/golint
+          curl -Lo kubectl https://storage.googleapis.com/kubernetes-release/release/${KUBERNETES_VERSION}/bin/linux/amd64/kubectl
+          chmod +x kubectl
+          sudo mv kubectl /usr/local/bin/
+          kind create cluster
+          kubectl cluster-info
+
+      - name: Deploy Operator SDK
+        run: |
+          curl -Lo operator-sdk https://github.com/operator-framework/operator-sdk/releases/download/${OPERATORSDK_VERSION}/operator-sdk-${OPERATORSDK_VERSION}-x86_64-linux-gnu
+          chmod +x operator-sdk
+          sudo mv operator-sdk /usr/local/bin/
+        env:
+          OPERATORSDK_VERSION: v0.19.0
+
+      - name: Setup Operator
+        run: |
+          cd $GOPATH/src/github.com/rh-messaging/activemq-artemis-operator
+          dep ensure -v && dep status
+
+
+      - name: Build and run tests
+        run: |
+          cd $GOPATH/src/github.com/rh-messaging/activemq-artemis-operator
+          make
+
+      - name: Build and push Docker images
+        uses: docker/build-push-action@v1
+        with:
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
+          registry: quay.io
+          repository: artemiscloud/activemq-artemis-operator
+          path: ./build
+          tag_with_ref: true
