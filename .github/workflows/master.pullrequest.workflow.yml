@@ -22,17 +22,26 @@ jobs:
 
       - name: Set variables
         run: /
-          echo "::set-env name=VERSION::$(curl -k -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)"
+          echo "::set-env name=KUBERNETES_VERSION::$(curl -k -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)"
+          echo "::set-env name=OPERATORSDK_VERSION::${{ steps.operator-sdk.outputs.release }}"
+          echo "::set-env name=ARTEMIS_VERSION::${{ steps.activemq-artemis.outputs.release }}"
+          echo "::set-env name=ARTEMIS_OPERATOR_VERSION::${{ steps.activemq-artemis-operator.outputs.release }}"
 
-      - name: Deploy Kind
-        run: |
+      - name: Install Go tools dep, Golint, KinD
+        run: /
           curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
           dep ensure --vendor-only
-          go get sigs.k8s.io/kind
           go get golang.org/x/lint/golint
+          go get sigs.k8s.io/kind
+
+      - name: Install latest kubectl
+        run: /
           curl -Lo kubectl https://storage.googleapis.com/kubernetes-release/release/${KUBERNETES_VERSION}/bin/linux/amd64/kubectl
           chmod +x kubectl
-          sudo mv kubectl /usr/local/bin/
+          sudo mv -f kubectl /usr/local/bin/
+
+      - name: Create KinD cluster
+        run: |
           kind create cluster
           kubectl cluster-info
 
@@ -41,8 +50,6 @@ jobs:
           curl -Lo operator-sdk https://github.com/operator-framework/operator-sdk/releases/download/${OPERATORSDK_VERSION}/operator-sdk-${OPERATORSDK_VERSION}-x86_64-linux-gnu
           chmod +x operator-sdk
           sudo mv operator-sdk /usr/local/bin/
-        env:
-          OPERATORSDK_VERSION: v0.19.0
 
       - name: Setup Operator
         run: |
